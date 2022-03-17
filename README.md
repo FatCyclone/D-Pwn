@@ -29,6 +29,7 @@ Process hollowing with D/Invoke
 - Process hollowing with no env (Token grab + Environment structure) in D/Invoke so it can launch without having a GUI (Perfect for lateral movement)
 - Port other and more "stealthier" techniques
 - Correct spelling and typos
+- Use NT Functions and change DLLs loading technique
 
 ## DISCLAIMER
 This code/project is only for educational/redteam operations purposes. I am not responsible for any illegal use of this code. 
