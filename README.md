@@ -4,6 +4,7 @@ Code repository where I can practice AV/EDR evasion with D/Invoke. Since I am no
 - [Evasion Practice](https://github.com/cinzinga/Evasion-Practice)
 - [SharpSploit](https://github.com/cobbr/SharpSploit)
 - [DInjector](https://github.com/snovvcrash/DInjector)
+- [RastaMouse](https://github.com/rasta-mouse/DInvoke)
 
 When trying to load SharpSploit.dll to execute my shellcode with D/Invoke, my app was instantly flagged. Therefore I decided to make it stealthier and standalone.
 
@@ -24,6 +25,9 @@ Process injection technique with D/Invoke
 
 ## dhollow.cs
 Process hollowing with D/Invoke
+
+## dhollow.cs
+D/Invoke MiniDumpWriteDump
 
 ## TODO
 - Process hollowing with no env (Token grab + Environment structure) in D/Invoke so it can launch without having a GUI (Perfect for lateral movement)
