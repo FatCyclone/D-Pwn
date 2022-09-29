@@ -26,7 +26,7 @@ Process injection technique with D/Invoke
 ## dhollow.cs
 Process hollowing with D/Invoke
 
-## dhollow.cs
+## ddump.cs
 D/Invoke MiniDumpWriteDump
 
 ## TODO
