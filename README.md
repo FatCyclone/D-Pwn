@@ -27,13 +27,14 @@ Process injection technique with D/Invoke
 Process hollowing with D/Invoke
 
 ## ddump.cs
-D/Invoke MiniDumpWriteDump
+MiniDumpWriteDump with D/Invoke
 
 ## TODO
 - Process hollowing with no env (Token grab + Environment structure) in D/Invoke so it can launch without having a GUI (Perfect for lateral movement)
 - Port other and more "stealthier" techniques
 - Correct spelling and typos
-- Use NT Functions and change DLLs loading technique
+- Use NT Functions and change DLLs loading technique (Partially Done)
+- Use duplicate handle technique on MinuDumpWriteDump and encrypt the dump 
 
 ## DISCLAIMER
 This code/project is only for educational/redteam operations purposes. I am not responsible for any illegal use of this code. 
