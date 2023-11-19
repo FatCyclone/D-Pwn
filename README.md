@@ -18,7 +18,7 @@ When trying to load SharpSploit.dll to execute my shellcode with D/Invoke, my ap
 ![image](https://user-images.githubusercontent.com/18697868/140501678-936d8ca9-a20c-4829-beea-796ec6f746d3.png)
 
 ## drunner.cs
-Simple shellcode runner with D/Invoke
+Simple shellcode runner with D/Invoke - Native API version done.
 
 ## dinject.cs
 Process injection technique with D/Invoke
