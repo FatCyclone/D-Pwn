@@ -34,7 +34,7 @@ MiniDumpWriteDump with D/Invoke
 - Port other and more "stealthier" techniques
 - Correct spelling and typos
 - Use NT Functions and change DLLs loading technique (Partially Done)
-- Use duplicate handle technique on MinuDumpWriteDump and encrypt the dump 
+- Use duplicate handle technique on MinuDumpWriteDump and encrypt the dump (Partially Done)
 
 ## DISCLAIMER
 This code/project is only for educational/redteam operations purposes. I am not responsible for any illegal use of this code. 
