@@ -34,7 +34,9 @@ MiniDumpWriteDump with D/Invoke
 - Port other and more "stealthier" techniques
 - Correct spelling and typos
 - Use NT Functions and change DLLs loading technique (Partially Done)
-- Use duplicate handle technique on MinuDumpWriteDump and encrypt the dump (Partially Done)
+- Use duplicate handle technique on MinuDumpWriteDump (I'll try to convert it to Nt functions in csharp, could be fun) and encrypt the dump (Partially Done)
+- Convert all loaders to use "distant" shellcodes and files
+- Add a simple tutorial
 
 ## DISCLAIMER
 This code/project is only for educational/redteam operations purposes. I am not responsible for any illegal use of this code. 
