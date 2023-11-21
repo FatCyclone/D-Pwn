@@ -34,7 +34,6 @@ namespace Charles
     }
     public class STRUCTS
     {
-        // Structures and Enums         
         public enum PSS_QUERY_INFORMATION_CLASS
         {
             PSS_QUERY_PROCESS_INFORMATION = 0,
@@ -101,6 +100,9 @@ namespace Charles
             MiniDumpFilterWriteCombinedMemory,
             MiniDumpValidTypeFlags = 0x01ffffff
         }
+
+
+        // Structures and Enums 
 
         [StructLayout(LayoutKind.Sequential)]
         public struct UNICODE_STRING
@@ -449,67 +451,7 @@ namespace Charles
 
             MaximumNtStatus = 0xffffffff
         }
-
-        public const uint CREATE_SUSPENDED = 0x4;
-        public const int PROCESSBASICINFORMATION = 0;
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        public struct ProcessInfo
-        {
-            public IntPtr hProcess;
-            public IntPtr hThread;
-            public Int32 ProcessId;
-            public Int32 ThreadId;
-        }
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        public struct StartupInfo
-        {
-            public uint cb;
-            public string lpReserved;
-            public string lpDesktop;
-            public string lpTitle;
-            public uint dwX;
-            public uint dwY;
-            public uint dwXSize;
-            public uint dwYSize;
-            public uint dwXCountChars;
-            public uint dwYCountChars;
-            public uint dwFillAttribute;
-            public uint dwFlags;
-            public short wShowWindow;
-            public short cbReserved2;
-            public IntPtr lpReserved2;
-            public IntPtr hStdInput;
-            public IntPtr hStdOutput;
-            public IntPtr hStdError;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct ProcessBasicInfo
-        {
-            public IntPtr Reserved1;
-            public IntPtr PebAddress;
-            public IntPtr Reserved2;
-            public IntPtr Reserved3;
-            public IntPtr UniquePid;
-            public IntPtr MoreReserved;
-        }
-
-        [StructLayout(LayoutKind.Sequential, Size = 40)]
-        public struct PROCESS_MEMORY_COUNTERS
-        {
-            public uint cb;
-            public uint PageFaultCount;
-            public uint PeakWorkingSetSize;
-            public uint WorkingSetSize;
-            public uint QuotaPeakPagedPoolUsage;
-            public uint QuotaPagedPoolUsage;
-            public uint QuotaPeakNonPagedPoolUsage;
-            public uint QuotaNonPagedPoolUsage;
-            public uint PagefileUsage;
-            public uint PeakPagefileUsage;
-        }
+       
     }
 
     public class Invoke
@@ -783,7 +725,6 @@ namespace Charles
 
                 }
             }
-
 
             static void Snapshot(Process process, out IntPtr sHandle, out IntPtr cloneProcess)
             {
