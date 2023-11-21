@@ -34,6 +34,7 @@ namespace Charles
     }
     public class STRUCTS
     {
+        // Structures and Enums         
         public enum PSS_QUERY_INFORMATION_CLASS
         {
             PSS_QUERY_PROCESS_INFORMATION = 0,
@@ -100,9 +101,6 @@ namespace Charles
             MiniDumpFilterWriteCombinedMemory,
             MiniDumpValidTypeFlags = 0x01ffffff
         }
-
-
-        // Structures and Enums 
 
         [StructLayout(LayoutKind.Sequential)]
         public struct UNICODE_STRING
