@@ -747,7 +747,6 @@ namespace Charles
             {
                     //Create a snapshot
                     Snapshot(process,out sHandle, out cloneProcess);
-                    Console.WriteLine($"Handle passed to the dump function :{cloneProcess}");
 
                     //Generate a minidump
                     byte[] dumpBytes = Dump(process, cloneProcess);
@@ -782,10 +781,7 @@ namespace Charles
                         DELEGATES.MiniDumpWriteDump MDWD = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.MiniDumpWriteDump)) as DELEGATES.MiniDumpWriteDump;
 
 
-                        bool status = MDWD(pHandle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-                        Console.WriteLine($"MemoryDump Status :{status}");
-                     
-
+                        bool status = MDWD(pHandle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);                  
                         fs.CopyTo(memoryStream);
                     }
 
