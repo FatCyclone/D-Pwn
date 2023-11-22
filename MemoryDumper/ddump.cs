@@ -868,7 +868,6 @@ namespace Charles
                         var pid = temp.UniquePID;
 
                         Marshal.FreeHGlobal(unique_pid);
-                        Console.WriteLine((int)pid);
                         return (int)pid;
                     }
                 }
