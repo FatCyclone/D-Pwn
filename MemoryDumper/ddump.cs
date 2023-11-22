@@ -718,6 +718,8 @@ namespace Charles
                         DELEGATES.MiniDumpWriteDump MDWD = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.MiniDumpWriteDump)) as DELEGATES.MiniDumpWriteDump;
 
                         MDWD(pHandle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+
+                        fs.Position = 0;
                         fs.CopyTo(memoryStream);
                     }
 
