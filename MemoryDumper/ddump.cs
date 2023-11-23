@@ -759,8 +759,8 @@ namespace Charles
 
             if (args.Length != 5)
             {
-                Console.WriteLine("Usage: ddump.exe [ProcessId] [key] [iv] [destination] [method: classic / snapshot]");
-                Console.WriteLine("Example: ddump.exe 762 'AH!PSB5%FRHZ$UKA' 'HV$3pIjHR$3pDj1!' C:\\temp\\poney.bin classic");
+                Console.WriteLine("Usage: ddump.exe [Process Name] [Key] [Iv] [Destination] [Dump method: classic / snapshot]");
+                Console.WriteLine("Example: ddump.exe lsass 'AH!PSB5%FRHZ$UKA' 'HV$3pIjHR$3pDj1!' C:\\temp\\poney.bin classic");
                 return;
             }
 
